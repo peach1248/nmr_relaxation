@@ -105,11 +105,12 @@ class RelaxationCurveCalculation:
                 np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
         intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
         # 有意なintensityかつ正の共鳴周波数の場合にTrue
-        self.resind = (intens >= self.intens_lim) * (fres > 0.0)
+        resind = (intens >= self.intens_lim) * (fres > 0.0)
         # 有意な遷移のみ取り出して周波数でソート
-        self.w_sort_idx = np.argsort(fres[self.resind])
-        self.fres = fres[self.resind][self.w_sort_idx]
-        self.intens = intens[self.resind][self.w_sort_idx]
+        self.w_sort_idx = np.argsort(fres[resind])
+        self.fres = fres[resind][self.w_sort_idx]
+        self.intens = intens[resind][self.w_sort_idx]
+        return resind
 
     def diagonalize_w_and_get_initial(self):
         """
@@ -166,30 +167,33 @@ class RelaxationCurveCalculation:
             # NMR, または分裂なし
             return "NMR"
 
-    def RelaxationCurve(self):
+    def RelaxationCurve(self, resind):
         # あらゆる固有ベクトルの差を作る
         # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
         idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
         x, y = np.meshgrid(idx_t, idx_t)
         self.c = self.a[x.flatten(), 1:] - self.a[y.flatten(), 1:]
-        self.c = self.c[self.resind, :][self.w_sort_idx, :]
+        self.c = self.c[resind, :][self.w_sort_idx, :]
         self.c = self.c0 * (self.c * self.c)
         cind = (np.max(self.c, axis=0) > self.eps_c)
         self.evw = self.evw[1:][cind]
         self.c = self.c[:, cind]
 
-    def RelaxationCurveInitial(self, n0):
+    def RelaxationCurveInitial(self, n0, resind):
         """初期値のリスト n0に対して緩和曲線を計算する. """
         self.dim_ev = self.dim
         # 係数行列の計算
         c1 = self.a.T @ n0
 
-        # meshgrid が圧倒的に早い(100 倍)
+        # meshgrid が圧倒的に早い
         idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
         x, y = np.meshgrid(idx_t, idx_t)
-        c2 = self.a[x] - self.a[y]
+        c2 = self.a[x.flatten(), :] - self.a[y.flatten(), :]
+
+        print(resind.shape)
+        print(c2.shape)
         # 有意な遷移のみ残す.
-        c2 = c2[self.resind, :][self.w_sort_idx, :]
+        c2 = c2[resind, :][self.w_sort_idx, :]
 
         # self.c[i,j] = sum_d (C_ni-C_nj)*C_nd*n_d(0)
         # self.c[nu,n]は遷移nuの緩和の, n番目の固有値の係数. 準位(j,k)間の遷移とは nu = j*2I + k の関係にある.
@@ -207,10 +211,10 @@ class RelaxationCurveCalculation:
         # self.w_sort_idx = np.argsort(self.fres)
 
         # extract the formula with all positive coefficients
-        self.resind = (self.c > 0).prod(axis=1) == 1
-        self.fres = self.fres[self.resind]
-        self.intens = self.intens[self.resind]
-        self.c = self.c[self.resind, :]
+        resind = (self.c > 0).prod(axis=1) == 1
+        self.fres = self.fres[resind]
+        self.intens = self.intens[resind]
+        self.c = self.c[resind, :]
         self.w_sort_idx = np.argsort(self.fres)
 
         # 規格化
@@ -223,11 +227,11 @@ class RelaxationCurveCalculation:
 
     def formula(self, n0=None):
         self.EnergyLevel()
-        self.FSP()
+        resonance_index = self.FSP()
         if n0 is None:
-            self.RelaxationCurve()
+            self.RelaxationCurve(resind=resonance_index)
         else:
-            self.RelaxationCurveInitial(n0)
+            self.RelaxationCurveInitial(n0, resind=resonance_index)
         return self.formula_write()
 
     def formula_write(self):
