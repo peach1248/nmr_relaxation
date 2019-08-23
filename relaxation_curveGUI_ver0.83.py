@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (QApplication,
                              QAction)
 from PyQt5 import QtCore
 
-from relaxation_curve.RelaxationCurve import RelaxationCurveCalculation
+from RelaxationCurve import RelaxationCurveCalculation
 
 
 """緩和曲線計算プログラム. 

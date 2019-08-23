@@ -101,16 +101,22 @@ class RelaxationCurveCalculation:
         """
         self.diagonalize_w_and_get_initial()
         # あらゆるエネルギー固有値の差を作る
-        fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
+        self.fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
                 np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
-        intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
+        self.intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
+        # あらゆる固有ベクトルの差を作る
+        # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
+        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
+        x, y = np.meshgrid(idx_t, idx_t)
+        self.c = self.a[x.flatten(), :] - self.a[y.flatten(), :]
+
         # 有意なintensityかつ正の共鳴周波数の場合にTrue
-        resind = (intens >= self.intens_lim) * (fres > 0.0)
+        resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
         # 有意な遷移のみ取り出して周波数でソート
-        self.w_sort_idx = np.argsort(fres[resind])
-        self.fres = fres[resind][self.w_sort_idx]
-        self.intens = intens[resind][self.w_sort_idx]
-        return resind
+        w_idx = np.argsort(self.fres[resind])
+        self.fres = self.fres[resind][w_idx]
+        self.intens = self.intens[resind][w_idx]
+        self.c = self.c[resind, :][w_idx, :]
 
     def diagonalize_w_and_get_initial(self):
         """
@@ -122,14 +128,15 @@ class RelaxationCurveCalculation:
         self.w = self.TransitionProbability(self.v)
         self.evw, self.a = np.linalg.eigh(self.w)
 
-        self.w_sort_idx = np.argsort(self.evw)[-1::-1]  # 遷移確率の固有値 降順
-        self.evw = self.evw[self.w_sort_idx]
-        self.a = self.a[:, self.w_sort_idx]
+        idx = np.argsort(self.evw)[-1::-1]  # 遷移確率の固有値 降順
+        self.evw = self.evw[idx]
+        self.a = self.a[:, idx]
 
         # 場合分け
         # todo 初期値、計算するRの差の設定を精密化
         # 共鳴周波数に合わせた初期値の設定
         case = self.cases()
+        self.dim_ev = self.dim
         if case == "integer NQR":  # NQR，I: 整数，η=0
             self.w = np.vstack((np.zeros(self.dim), self.w))
             self.w = np.hstack((np.zeros((self.dim + 1, 1)), self.w))
@@ -143,7 +150,6 @@ class RelaxationCurveCalculation:
             self.c0 = 0.25
         else:  # NMR, または分裂なし
             self.c0 = 0.5
-            self.dim_ev = self.dim
             return
 
         self.level = self.level[::2]  # 縮退エネルギーをまとめる
@@ -167,38 +173,24 @@ class RelaxationCurveCalculation:
             # NMR, または分裂なし
             return "NMR"
 
-    def RelaxationCurve(self, resind):
-        # あらゆる固有ベクトルの差を作る
-        # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
-        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
-        x, y = np.meshgrid(idx_t, idx_t)
-        self.c = self.a[x.flatten(), 1:] - self.a[y.flatten(), 1:]
-        self.c = self.c[resind, :][self.w_sort_idx, :]
+    def RelaxationCurve(self):
+        # centerA
+        self.c = self.c[:, 1:]
         self.c = self.c0 * (self.c * self.c)
+        # 有意な遷移のみ残す
         cind = (np.max(self.c, axis=0) > self.eps_c)
         self.evw = self.evw[1:][cind]
         self.c = self.c[:, cind]
 
-    def RelaxationCurveInitial(self, n0, resind):
+    def RelaxationCurveInitial(self, n0):
         """初期値のリスト n0に対して緩和曲線を計算する. """
-        self.dim_ev = self.dim
         # 係数行列の計算
         c1 = self.a.T @ n0
 
-        # meshgrid が圧倒的に早い
-        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
-        x, y = np.meshgrid(idx_t, idx_t)
-        c2 = self.a[x.flatten(), :] - self.a[y.flatten(), :]
-
-        print(resind.shape)
-        print(c2.shape)
-        # 有意な遷移のみ残す.
-        c2 = c2[resind, :][self.w_sort_idx, :]
-
         # self.c[i,j] = sum_d (C_ni-C_nj)*C_nd*n_d(0)
         # self.c[nu,n]は遷移nuの緩和の, n番目の固有値の係数. 準位(j,k)間の遷移とは nu = j*2I + k の関係にある.
-        self.c = (c2 @ np.diag(c1))[:, 1:]
-        # self.cの形は[self.w_sort_idx.size, dim_ev]
+        self.c = (self.c @ np.diag(c1))[:, 1:]
+        # self.cの形は[self.fres.size, dim_ev]
 
         cind = np.max(self.c, axis=0) > self.eps_c
         self.evw = self.evw[1:][cind]
@@ -215,7 +207,6 @@ class RelaxationCurveCalculation:
         self.fres = self.fres[resind]
         self.intens = self.intens[resind]
         self.c = self.c[resind, :]
-        self.w_sort_idx = np.argsort(self.fres)
 
         # 規格化
         self.c = RelaxationCurveCalculation.row_normalize(self.c)
@@ -227,16 +218,14 @@ class RelaxationCurveCalculation:
 
     def formula(self, n0=None):
         self.EnergyLevel()
-        resonance_index = self.FSP()
+        self.FSP()
         if n0 is None:
-            self.RelaxationCurve(resind=resonance_index)
+            self.RelaxationCurve()
         else:
-            self.RelaxationCurveInitial(n0, resind=resonance_index)
+            self.RelaxationCurveInitial(n0)
         return self.formula_write()
 
     def formula_write(self):
-        fid = []
-
         #       pi = np.pi
         #       fid.append("""# NMR relaxation curve
         #           # I={0:.1f}, gamma={1:.5f} MHz/T, H0={2:.5f} T, K={3:.5f}%
@@ -245,14 +234,14 @@ class RelaxationCurveCalculation:
         #                      self.theta / pi * 180.0, self.phi / pi * 180))
 
         # formula style
-        fid.append("[f(MHz) intensity]\n")
+        fid = ["[f(MHz) intensity]\n"]
         for i in range(self.fres.size):
             fid.append("[{0:g} {1:g}] ".format(self.fres[i], self.intens[i]))
-            printed = 0
+            printed = False
             for j in range(self.evw.size):
                 if abs(self.c[i, j]) > self.eps_c:
-                    if printed == 0:
-                        printed = 1
+                    if not printed:
+                        printed = True
                     else:
                         fid.append(" + ")
 
@@ -263,13 +252,10 @@ class RelaxationCurveCalculation:
     def list(self, fid):
         for j in range(self.evw.size):
             fid.write(" {0:f}".format(self.evw[j]))
-
         fid.write("\n")
 
-        for i in range(self.w_sort_idx.size):
+        for i in range(self.fres.size):
             fid.write("[{0:f} {1:f}]".format(self.fres[i], self.intens[i]))
             for j in range(self.evw.size):
                 fid.write(" {0:f}".format(self.c[i, j]))
-
             fid.write("\n")
-
