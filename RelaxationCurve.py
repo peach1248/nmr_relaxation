@@ -93,12 +93,18 @@ class RelaxationCurveCalculation:
         return w
 
     def FSP(self):
+        """
+         FSPの計算
+        :return: self.fres: 共鳴周波数のnp.array
+                 self.intens: intensityのnp.array
+                 self.
+        """
         self.diagonalize_w_and_get_initial()
         # あらゆるエネルギー固有値の差を作る
         fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
                 np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
         intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
-        # 有意なIntensityかつ正の共鳴周波数の場合にTrue
+        # 有意なintensityかつ正の共鳴周波数の場合にTrue
         self.resind = (intens >= self.intens_lim) * (fres > 0.0)
         # 有意な遷移のみ取り出して周波数でソート
         self.w_sort_idx = np.argsort(fres[self.resind])
@@ -161,11 +167,11 @@ class RelaxationCurveCalculation:
             return "NMR"
 
     def RelaxationCurve(self):
-        # ind_t = [0, ..., 2I+1, ...(2I+1回)..., 0, ..., 2I+1]
-        ind_t = list(range(self.dim_ev)) * self.dim_ev
         # あらゆる固有ベクトルの差を作る
         # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
-        self.c = self.a[ind_t, 1:] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), 1:]
+        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
+        x, y = np.meshgrid(idx_t, idx_t)
+        self.c = self.a[x.flatten(), 1:] - self.a[y.flatten(), 1:]
         self.c = self.c[self.resind, :][self.w_sort_idx, :]
         self.c = self.c0 * (self.c * self.c)
         cind = (np.max(self.c, axis=0) > self.eps_c)
@@ -178,8 +184,10 @@ class RelaxationCurveCalculation:
         # 係数行列の計算
         c1 = self.a.T @ n0
 
-        ind_t = list(range(self.dim_ev)) * self.dim_ev
-        c2 = self.a[ind_t, :] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), :]
+        # meshgrid が圧倒的に早い(100 倍)
+        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
+        x, y = np.meshgrid(idx_t, idx_t)
+        c2 = self.a[x] - self.a[y]
         # 有意な遷移のみ残す.
         c2 = c2[self.resind, :][self.w_sort_idx, :]
 
@@ -188,11 +196,18 @@ class RelaxationCurveCalculation:
         self.c = (c2 @ np.diag(c1))[:, 1:]
         # self.cの形は[self.w_sort_idx.size, dim_ev]
 
-        cind = (np.max(self.c, axis=0) > self.eps_c)
+        cind = np.max(self.c, axis=0) > self.eps_c
         self.evw = self.evw[1:][cind]
         self.c = self.c[:, cind]
 
-        self.resind = self.c.sum(axis=1) > 0
+        # self.resind = self.c.sum(axis=1) > 0
+        # self.fres = self.fres[self.resind]
+        # self.intens = self.intens[self.resind]
+        # self.c = self.c[self.resind, :]
+        # self.w_sort_idx = np.argsort(self.fres)
+
+        # extract the formula with all positive coefficients
+        self.resind = (self.c > 0).prod(axis=1) == 1
         self.fres = self.fres[self.resind]
         self.intens = self.intens[self.resind]
         self.c = self.c[self.resind, :]
@@ -218,16 +233,16 @@ class RelaxationCurveCalculation:
     def formula_write(self):
         fid = []
 
- #       pi = np.pi
- #       fid.append("""# NMR relaxation curve
- #           # I={0:.1f}, gamma={1:.5f} MHz/T, H0={2:.5f} T, K={3:.5f}%
- #           # nuQ={4:.5f} MHz, eta={5:.5f}, theta={6:.5f}deg, phi={7:.5f}deg
- #           """.format(self.i, self.gyr, self.h0, 100.0 * self.k_shift, self.nuq, self.eta,
- #                      self.theta / pi * 180.0, self.phi / pi * 180))
+        #       pi = np.pi
+        #       fid.append("""# NMR relaxation curve
+        #           # I={0:.1f}, gamma={1:.5f} MHz/T, H0={2:.5f} T, K={3:.5f}%
+        #           # nuQ={4:.5f} MHz, eta={5:.5f}, theta={6:.5f}deg, phi={7:.5f}deg
+        #           """.format(self.i, self.gyr, self.h0, 100.0 * self.k_shift, self.nuq, self.eta,
+        #                      self.theta / pi * 180.0, self.phi / pi * 180))
 
         # formula style
         fid.append("[f(MHz) intensity]\n")
-        for i in range(self.w_sort_idx.size):
+        for i in range(self.fres.size):
             fid.append("[{0:g} {1:g}] ".format(self.fres[i], self.intens[i]))
             printed = 0
             for j in range(self.evw.size):

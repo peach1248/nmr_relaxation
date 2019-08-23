@@ -219,8 +219,8 @@ class AdvSettings(QWidget):
         self.int_lim_text.textEdited.connect(self.parameter_set)
 
         self.setLayout(vbox)
-        self.eps_c_text.setText("1e-6")
-        self.int_lim_text.setText("1e-5")
+        self.eps_c_text.setText("1e-2")
+        self.int_lim_text.setText("1e-2")
         self.eps_c = 1e-6
         self.int_lim = 1e-5
 
@@ -326,7 +326,6 @@ class UI(QMainWindow):
         self.initial_parameter.close()
         self.advset_widget.close()
         self.close()
-
 
 # class RelaxationCurveCalculation:
 #     """緩和曲線を計算する
