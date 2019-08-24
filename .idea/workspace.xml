@@ -2,13 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="39752b8d-2c9f-45d9-8896-a1e7756926e8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/nmr_relaxation.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test_calc.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/RelaxationCurve.py" beforeDir="false" afterPath="$PROJECT_DIR$/RelaxationCurve.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/relaxation_curveGUI_ver0.83.py" beforeDir="false" afterPath="$PROJECT_DIR$/relaxation_curveGUI_ver0.83.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -21,47 +17,30 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/RelaxationCurve.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="980">
-              <caret line="224" column="43" lean-forward="true" selection-start-line="224" selection-start-column="43" selection-end-line="224" selection-end-column="43" />
+            <state relative-caret-position="291">
+              <caret line="259" column="26" lean-forward="true" selection-start-line="259" selection-start-column="26" selection-end-line="259" selection-end-column="26" />
               <folding>
+                <element signature="e#3327#5541#0" expanded="true" />
+                <element signature="e#8636#9626#0" expanded="true" />
                 <element signature="e#7514#7552#0" />
-                <element signature="e#8584#9620#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/relaxation_curveGUI_ver0.83.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="340">
-              <caret line="17" column="15" lean-forward="true" selection-start-line="17" selection-start-column="15" selection-end-line="17" selection-end-column="15" />
-              <folding>
-                <element signature="e#48#58#0" expanded="true" />
-                <element signature="e#880#1231#1" expanded="true" />
-                <element signature="e#1278#3072#0" expanded="true" />
-                <element signature="e#3118#3323#0" expanded="true" />
-                <element signature="e#3365#3440#1" expanded="true" />
-                <element signature="e#3487#3817#0" expanded="true" />
-                <element signature="e#3863#4005#1" expanded="true" />
-                <element signature="e#4055#4963#0" expanded="true" />
-                <element signature="e#5005#5576#0" expanded="true" />
-                <element signature="e#5618#5992#0" expanded="true" />
-                <element signature="e#6068#7041#0" expanded="true" />
-                <element signature="e#7080#7242#0" expanded="true" />
-                <element signature="e#7272#7405#1" expanded="true" />
-                <element signature="e#7438#9227#0" expanded="true" />
-                <element signature="e#9264#10415#0" expanded="true" />
-                <element signature="e#10454#10688#0" expanded="true" />
-                <element signature="e#10731#10817#0" expanded="true" />
-                <element signature="e#10820#10855#0" />
-                <element signature="e#19633#19775#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
     </leaf>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>Initia</find>
+    </findStrings>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -75,17 +54,8 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/relaxation_curveGUI_ver0.83.py" />
+        <option value="$PROJECT_DIR$/test_calc.py" />
         <option value="$PROJECT_DIR$/RelaxationCurve.py" />
-      </list>
-    </option>
-  </component>
-  <component name="ProjectConfigurationFiles">
-    <option name="files">
-      <list>
-        <option value="$PROJECT_DIR$/.idea/nmr_relaxation.iml" />
-        <option value="$PROJECT_DIR$/.idea/misc.xml" />
-        <option value="$PROJECT_DIR$/.idea/vcs.xml" />
-        <option value="$PROJECT_DIR$/.idea/modules.xml" />
       </list>
     </option>
   </component>
@@ -170,21 +140,29 @@
       <option name="presentableId" value="Default" />
       <updated>1566571149417</updated>
     </task>
+    <task id="LOCAL-00001" summary="clean w_idx">
+      <created>1566574228747</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1566574228747</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="ToolWindowManager">
     <frame x="1272" y="-65" width="1936" height="1056" extended-state="6" />
     <layout>
       <window_info id="Favorites" side_tool="true" />
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.24973656" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.24973656" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
-      <window_info anchor="bottom" id="Version Control" sideWeight="0.49947312" weight="0.32936078" />
-      <window_info anchor="bottom" id="Python Console" />
-      <window_info anchor="bottom" id="Terminal" weight="0.32936078" />
-      <window_info anchor="bottom" id="Event Log" sideWeight="0.50052685" side_tool="true" visible="true" weight="0.32936078" />
+      <window_info anchor="bottom" id="Version Control" sideWeight="0.49894625" weight="0.32936078" />
+      <window_info anchor="bottom" id="Python Console" sideWeight="0.49894625" weight="0.32936078" />
+      <window_info anchor="bottom" id="Terminal" sideWeight="0.49894625" weight="0.32936078" />
+      <window_info anchor="bottom" id="Event Log" sideWeight="0.50316125" side_tool="true" visible="true" weight="0.32936078" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32936078" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49947312" visible="true" weight="0.32936078" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.49683878" visible="true" weight="0.32936078" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -220,13 +198,18 @@
       </map>
     </option>
   </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="clean w_idx" />
+    <option name="LAST_COMMIT_MESSAGE" value="clean w_idx" />
+  </component>
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/relaxation_curveGUI_ver0.83.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="340">
-          <caret line="17" column="15" lean-forward="true" selection-start-line="17" selection-start-column="15" selection-end-line="17" selection-end-column="15" />
+          <caret line="312" column="26" selection-start-line="312" selection-start-column="26" selection-end-line="312" selection-end-column="26" />
           <folding>
             <element signature="e#48#58#0" expanded="true" />
+            <element signature="e#525#837#1" expanded="true" />
             <element signature="e#880#1231#1" expanded="true" />
             <element signature="e#1278#3072#0" expanded="true" />
             <element signature="e#3118#3323#0" expanded="true" />
@@ -240,7 +223,6 @@
             <element signature="e#7080#7242#0" expanded="true" />
             <element signature="e#7272#7405#1" expanded="true" />
             <element signature="e#7438#9227#0" expanded="true" />
-            <element signature="e#9264#10415#0" expanded="true" />
             <element signature="e#10454#10688#0" expanded="true" />
             <element signature="e#10731#10817#0" expanded="true" />
             <element signature="e#10820#10855#0" />
@@ -249,13 +231,25 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/test_calc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="291">
+          <caret line="45" lean-forward="true" selection-start-line="45" selection-end-line="45" />
+          <folding>
+            <element signature="e#49#103#0" expanded="true" />
+            <element signature="e#83#87#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/RelaxationCurve.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="980">
-          <caret line="224" column="43" lean-forward="true" selection-start-line="224" selection-start-column="43" selection-end-line="224" selection-end-column="43" />
+        <state relative-caret-position="291">
+          <caret line="259" column="26" lean-forward="true" selection-start-line="259" selection-start-column="26" selection-end-line="259" selection-end-column="26" />
           <folding>
+            <element signature="e#3327#5541#0" expanded="true" />
+            <element signature="e#8636#9626#0" expanded="true" />
             <element signature="e#7514#7552#0" />
-            <element signature="e#8584#9620#0" expanded="true" />
           </folding>
         </state>
       </provider>

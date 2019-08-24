@@ -43,6 +43,7 @@ class RelaxationCurveCalculation:
         self.phi = phi * pi / 180.0  # 磁場方向を極座標(theta,phi)で表す．単位はrad.
         self.intens_lim = intens_lim  # NMR中心線の信号強度のintens_lim倍未満の線は無視
         self.eps = eps
+        self.f_resolution = 1e-3
         self.eps_c = eps_c  # 指数関数の係数がこの値以上であれば表示する
         self.make_matrix()
 
@@ -92,31 +93,74 @@ class RelaxationCurveCalculation:
                     + wz * np.conj(wz)) - self.ii * np.identity(self.dim)
         return w
 
-    def FSP(self):
+    def FSP(self, get_initial_value=False):
         """
          FSPの計算
         :return: self.fres: 共鳴周波数のnp.array
                  self.intens: intensityのnp.array
-                 self.
+                 self.c     : 緩和関数の係数行列[resonance, evw]
         """
         self.diagonalize_w_and_get_initial()
         # あらゆるエネルギー固有値の差を作る
-        self.fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
-                np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
-        self.intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
-        # あらゆる固有ベクトルの差を作る
-        # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
-        idx_t = np.arange(0, self.dim_ev, 1, dtype=np.int8)
-        x, y = np.meshgrid(idx_t, idx_t)
-        self.c = self.a[x.flatten(), :] - self.a[y.flatten(), :]
+        self.fres = np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1))
+        self.intens = np.tril(self.w, -1) * 2.0 / np.ceil(self.ii)
 
-        # 有意なintensityかつ正の共鳴周波数の場合にTrue
-        resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
-        # 有意な遷移のみ取り出して周波数でソート
-        w_idx = np.argsort(self.fres[resind])
-        self.fres = self.fres[resind][w_idx]
-        self.intens = self.intens[resind][w_idx]
-        self.c = self.c[resind, :][w_idx, :]
+        if get_initial_value:
+            # 共鳴周波数の重複を得る.
+            # idx = [[i, ...][j, ...]] はi <-> j 遷移が有意であるようなindex全体(重複なしi>j).
+            decimal = -int(np.floor(np.log10(self.f_resolution)))
+            self.fres = np.round(self.fres, decimals=decimal)
+            # self なしは一時変数. 編集した後self つきに代入する.
+            fres = np.unique(self.fres)
+            fres = fres[np.argsort(fres)][1:]
+            intens = np.zeros(fres.size)
+            n0s = np.zeros((fres.size, self.dim))
+            for f_i, f in enumerate(fres):
+                idx = np.where(self.fres == f)
+                n0s[f_i][idx[0]] += 1
+                n0s[f_i][idx[1]] -= 1
+                intens[f_i] += self.intens[idx].sum()
+                self.intens[idx] = 0
+
+            # self.c[resind][n] = (sum_d C_nd * n_d(0))**2
+            self.c = np.zeros(n0s[0].size)
+            for n0 in n0s:
+                c1 = self.a.T @ n0
+                self.c = np.vstack((self.c, c1*c1))
+
+            self.fres = fres
+            self.intens = intens
+            self.evw = self.evw[1:]
+            self.c = self.c[1:, 1:]
+
+            resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
+            # 有意な遷移のみ取り出して周波数でソート
+            w_idx = np.argsort(self.fres[resind])
+            self.fres = self.fres[resind][w_idx]
+            self.intens = self.intens[resind][w_idx]
+            self.c = self.c[resind, :][w_idx, :]
+
+            cind = (np.max(self.c, axis=0) > self.eps_c)
+            self.evw = self.evw[cind]
+            self.c = self.c[:, cind]
+            # __class__.row_normalize(self.c)
+        else:
+            # あらゆる固有ベクトルの差を作る
+            # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
+            idx_t = np.arange(0, self.dim_ev, step=1, dtype=np.int8)
+            x, y = np.meshgrid(idx_t, idx_t)
+            self.c = self.a[x.flatten(), :] - self.a[y.flatten(), :]
+
+            # 有意なintensityかつ正の共鳴周波数の場合にTrue
+            self.fres -= np.triu(np.ones((self.dim_ev, self.dim_ev)))
+            self.fres = self.fres.flatten()
+            self.intens = self.intens.flatten()
+            resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
+            # 有意な遷移のみ取り出して周波数でソート
+            w_idx = np.argsort(self.fres[resind])
+            self.fres = self.fres[resind][w_idx]
+            self.intens = self.intens[resind][w_idx]
+            self.c = self.c[resind, :][w_idx, :]
 
     def diagonalize_w_and_get_initial(self):
         """
@@ -173,25 +217,21 @@ class RelaxationCurveCalculation:
             # NMR, または分裂なし
             return "NMR"
 
-    def RelaxationCurve(self):
-        # centerA
-        self.c = self.c[:, 1:]
-        self.c = self.c0 * (self.c * self.c)
-        # 有意な遷移のみ残す
-        cind = (np.max(self.c, axis=0) > self.eps_c)
-        self.evw = self.evw[1:][cind]
-        self.c = self.c[:, cind]
 
-    def RelaxationCurveInitial(self, n0):
+    def RelaxationCurve(self, n0=None):
         """初期値のリスト n0に対して緩和曲線を計算する. """
         # 係数行列の計算
-        c1 = self.a.T @ n0
-
         # self.c[i,j] = sum_d (C_ni-C_nj)*C_nd*n_d(0)
         # self.c[nu,n]は遷移nuの緩和の, n番目の固有値の係数. 準位(j,k)間の遷移とは nu = j*2I + k の関係にある.
-        self.c = (self.c @ np.diag(c1))[:, 1:]
         # self.cの形は[self.fres.size, dim_ev]
+        if n0 is None:
+            self.c = self.c0 * (self.c * self.c)
+        else:
+            c1 = self.a.T @ n0
+            self.c = (self.c @ np.diag(c1))
+        self.c = self.c[:, 1:]
 
+        # 有意な遷移のみ残す
         cind = np.max(self.c, axis=0) > self.eps_c
         self.evw = self.evw[1:][cind]
         self.c = self.c[:, cind]
@@ -219,10 +259,7 @@ class RelaxationCurveCalculation:
     def formula(self, n0=None):
         self.EnergyLevel()
         self.FSP()
-        if n0 is None:
-            self.RelaxationCurve()
-        else:
-            self.RelaxationCurveInitial(n0)
+        self.RelaxationCurve(n0)
         return self.formula_write()
 
     def formula_write(self):
