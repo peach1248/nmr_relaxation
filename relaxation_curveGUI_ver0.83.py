@@ -288,14 +288,18 @@ class UI(QMainWindow):
 
         # パラメータの設定
         pd = self.parameter_dock
-        r.gyr = float(pd.gamma.text())
-        r.i = (pd.i_combo.currentIndex() * 2 + 1) / 2  # I
-        r.h0 = float(pd.h0.text())
-        r.k_shift = float(pd.K.text()) / 100
-        r.nuq = float(pd.nuQ.text())
-        r.eta = float(pd.eta.text())
-        r.theta = float(pd.theta.text())
-        r.phi = float(pd.phi.text())
+        try:
+            r.gyr = float(pd.gamma.text())
+            r.i = (pd.i_combo.currentIndex() * 2 + 1) / 2  # I
+            r.h0 = float(pd.h0.text())
+            r.k_shift = float(pd.K.text()) / 100
+            r.nuq = float(pd.nuQ.text())
+            r.eta = float(pd.eta.text())
+            r.theta = float(pd.theta.text())
+            r.phi = float(pd.phi.text())
+        except ValueError as e:
+            print(e)
+            return
 
         r.eps_c = self.advset_widget.eps_c
         r.intens_lim = self.advset_widget.int_lim
@@ -310,7 +314,8 @@ class UI(QMainWindow):
                 a = r.formula(self.n0)
             else:
                 a = r.formula()
-        except ValueError:
+        except ValueError as e:
+            print(e)
             QMessageBox.warning(self, "Message", u"Sorry but initial parameters are not available in NQR case")
         else:
             self.function_dock.function.setText(a)

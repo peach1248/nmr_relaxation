@@ -162,7 +162,7 @@ class RelaxationCurveCalculation:
         self.fres = np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1))
         self.intens = np.tril(self.w, -1) * 2.0 / np.ceil(self.ii)
 
-        if get_initial_value:
+        if get_initial_value and np.abs(self.h0*self.gyr) > 1e-6 :
             """
                 共鳴周波数から初期条件を計算する.
                 計算コストはかかるが, この中では最も正しい計算
@@ -185,21 +185,23 @@ class RelaxationCurveCalculation:
 
             # 係数行列cを作る
             # self.c[resind][n] = (sum_d C_nd * n_d[resind](t=0))**2
-            # 0行目はdummy
-            self.c = np.zeros(n0s[0].size)
-            for n0 in n0s:
-                c1 = self.a.T @ n0
-                self.c = np.vstack((self.c,
-                                    c1*c1))
-            # dummy消去
-            self.c = self.c[1:, :]
+            if n0s.size > 0:
+                # 0行目はdummy
+                self.c = np.zeros(n0s[0].size)
+                for n0 in n0s:
+                    c1 = self.a.T @ n0
+                    self.c = np.vstack((self.c,
+                                        c1*c1))
+                # dummy消去
+                self.c = self.c[1:, :]
 
-            # まとめ
-            self.fres = fres
-            self.intens = intens
-            self.evw = self.evw[1:]  # 固有値0除く
-            self.c = self.c[:, 1:]
-
+                # まとめ
+                self.fres = fres
+                self.intens = intens
+                self.evw = self.evw[1:]  # 固有値0除く
+                self.c = self.c[:, 1:]
+            else:
+                self.c = np.empty(0)
             # 有意な遷移のみ取り出して周波数でソート
             resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
             self.clean_resonance_by(condition=resind)
@@ -237,7 +239,10 @@ class RelaxationCurveCalculation:
             self.c = self.c[:, 1:]
 
         # 係数が有意な固有値のみ残す
-        self.clean_w_by(condition=(np.max(self.c, axis=0) > self.eps_c))
+        if self.c.size == 0:
+            self.evw = np.empty(0)
+        else:
+            self.clean_w_by(condition=(np.max(self.c, axis=0) > self.eps_c))
 
         if n0 is not None:
             # self.resind = self.c.sum(axis=1) > 0
@@ -273,7 +278,7 @@ class RelaxationCurveCalculation:
         self.intens = self.intens[condition][sort_idx]
         self.c = self.c[condition, :][sort_idx, :]
 
-    def formula(self, n0=None, auto_initial=False):
+    def formula(self, n0=None, auto_initial=True):
         self.EnergyLevel()
         self.get_resonance_and_relaxation(n0=n0, get_initial_value=auto_initial)
         return self.formula_write()
