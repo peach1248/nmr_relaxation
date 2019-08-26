@@ -27,6 +27,7 @@ class RelaxationCurveCalculation:
                  eta=0,
                  theta=0,
                  phi=0,
+                 f_resolution=1e-2,
                  intens_lim=1e-5,
                  eps=2e-16,
                  eps_c=1e-6):
@@ -43,12 +44,20 @@ class RelaxationCurveCalculation:
         self.phi = phi * pi / 180.0  # 磁場方向を極座標(theta,phi)で表す．単位はrad.
         self.intens_lim = intens_lim  # NMR中心線の信号強度のintens_lim倍未満の線は無視
         self.eps = eps
-        self.f_resolution = 1e-3
+        self.f_resolution = f_resolution
         self.eps_c = eps_c  # 指数関数の係数がこの値以上であれば表示する
         self.make_matrix()
 
     def make_matrix(self):
-        """与えられたパラメータから行列及び次元を決定する.
+        """
+          determining dimension & nuclear spin matrices
+          don't for get to execute this function when you give parameter manually
+          (e.g.
+            r = RelaxationCurveCalculation()
+            r.i = 3.5
+            r.make_matrix()
+          )
+        与えられたパラメータから行列及び次元を決定する.
         パラメータを与えたら実行せよ."""
         self.dim = int(2 * self.i + 1)
         self.ii = self.i * (self.i + 1)
@@ -61,6 +70,10 @@ class RelaxationCurveCalculation:
         self.iz = np.diag(m_spin)
 
     def Hamiltonian(self):
+        """
+          calculate Hamiltonian from initialized parameters
+        :return: Hamiltonian
+        """
         nuq = np.abs(self.nuq)
         hz = -self.gyr * self.h0 * (1 + self.k_shift) * (
                 self.iz * np.cos(self.theta)
@@ -74,7 +87,7 @@ class RelaxationCurveCalculation:
 
     def EnergyLevel(self):
         """
-          diagonalizing Hamiltonian
+          diagonalizing nuclear spin Hamiltonian
           :return: self.level: eigen values (ascending order, 昇順)
                    self.v:     eigen states
         """
@@ -86,9 +99,10 @@ class RelaxationCurveCalculation:
         self.v = self.v[:, sort_index]
 
     def TransitionProbability(self, v):
-        wx = np.conj(v.T) @ self.ix @ v
-        wy = np.conj(v.T) @ self.iy @ v
-        wz = np.conj(v.T) @ self.iz @ v
+        v_transpose = np.conj(v.T)
+        wx = v_transpose @ self.ix @ v
+        wy = v_transpose @ self.iy @ v
+        wz = v_transpose @ self.iz @ v
         w = np.real(wx * np.conj(wx)
                     + wy * np.conj(wy)
                     + wz * np.conj(wz)) - self.ii * np.identity(self.dim)
@@ -109,8 +123,6 @@ class RelaxationCurveCalculation:
         self.a = self.a[:, idx]
 
         # 場合分け
-        # todo 初期値、計算するRの差の設定を精密化
-        # 共鳴周波数に合わせた初期値の設定
         case = self.cases()
         self.dim_ev = self.dim
         if case == "integer NQR":  # NQR，I: 整数，η=0
@@ -178,8 +190,8 @@ class RelaxationCurveCalculation:
             n0s = np.zeros((fres.size, self.dim))
             for f_i, f in enumerate(fres):
                 idx = np.where(self.fres == f)
-                n0s[f_i][idx[0]] += 1
-                n0s[f_i][idx[1]] -= 1
+                n0s[f_i][idx[0]] += self.intens[idx]
+                n0s[f_i][idx[1]] -= self.intens[idx]
                 intens[f_i] += self.intens[idx].sum()
                 self.intens[idx] = 0
 
@@ -203,8 +215,10 @@ class RelaxationCurveCalculation:
             else:
                 self.c = np.empty(0)
             # 有意な遷移のみ取り出して周波数でソート
-            resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
-            self.clean_resonance_by(condition=resind)
+            # resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
+            self.clean_resonance_by(
+                condition=lambda i=None, f=None, **kargs: (i >= self.intens_lim) * (f > 0.0)
+            )
 
         else:
             # 係数行列の計算
@@ -224,8 +238,10 @@ class RelaxationCurveCalculation:
             self.intens = self.intens.flatten()
 
             # 有意な遷移のみ取り出して周波数でソート
-            resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
-            self.clean_resonance_by(condition=resind)
+            # resind = (self.intens >= self.intens_lim) * (self.fres > 0.0)
+            self.clean_resonance_by(
+                condition=lambda i=None, f=None, **kargs: (i >= self.intens_lim) * (f > 0.0)
+            )
 
             # 遷移を間引いてから計算した方が計算コストが低い
             if n0 is None:
@@ -242,7 +258,9 @@ class RelaxationCurveCalculation:
         if self.c.size == 0:
             self.evw = np.empty(0)
         else:
-            self.clean_w_by(condition=(np.max(self.c, axis=0) > self.eps_c))
+            self.clean_w_by(
+                condition=lambda c=None, **kwargs: np.max(self.c, axis=0) > self.eps_c
+            )
 
         if n0 is not None:
             # self.resind = self.c.sum(axis=1) > 0
@@ -252,8 +270,9 @@ class RelaxationCurveCalculation:
             # self.w_sort_idx = np.argsort(self.fres)
 
             # extract the formula with all positive coefficients
-            condition = (self.c > 0).prod(axis=1) == 1
-            self.clean_resonance_by(condition=condition)
+            self.clean_resonance_by(
+                condition=lambda c=None, **kwargs: (c > 0).prod(axis=1) == 1
+            )
 
             # 規格化
             self.c = RelaxationCurveCalculation.row_normalize(self.c)
@@ -266,19 +285,25 @@ class RelaxationCurveCalculation:
     def clean_w_by(self, condition=None):
         if condition is None:
             return
-        self.evw = self.evw[condition]
-        self.c = self.c[:, condition]
+        idx = condition(
+            c=self.c, w=self.evw
+        )
+        self.evw = self.evw[idx]
+        self.c = self.c[:, idx]
 
     def clean_resonance_by(self, condition=None):
         if condition is None:
             return
-        self.fres = self.fres[condition]
+        idx = condition(
+            f=self.fres, i=self.intens, c=self.c
+        )
+        self.fres = self.fres[idx]
         sort_idx = np.argsort(self.fres)
         self.fres = self.fres[sort_idx]
-        self.intens = self.intens[condition][sort_idx]
-        self.c = self.c[condition, :][sort_idx, :]
+        self.intens = self.intens[idx][sort_idx]
+        self.c = self.c[idx, :][sort_idx, :]
 
-    def formula(self, n0=None, auto_initial=True):
+    def formula(self, n0=None, auto_initial=False):
         self.EnergyLevel()
         self.get_resonance_and_relaxation(n0=n0, get_initial_value=auto_initial)
         return self.formula_write()
@@ -317,3 +342,14 @@ class RelaxationCurveCalculation:
             for j in range(self.evw.size):
                 fid.write(" {0:f}".format(self.c[i, j]))
             fid.write("\n")
+
+
+def main():
+    r = RelaxationCurveCalculation(nuq=0)
+    print(
+        r.formula(auto_initial=True)
+    )
+
+
+if __name__ == '__main__':
+    main()

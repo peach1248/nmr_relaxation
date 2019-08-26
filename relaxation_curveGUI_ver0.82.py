@@ -6,6 +6,8 @@ import numpy as np
 from PyQt4 import QtGui
 from PyQt4 import QtCore
 
+from RelaxationCurve import RelaxationCurveCalculation
+
 """緩和曲線計算プログラム. 
 真砂さんの素晴らしいプログラムをClass化, GUI化した.
 今後の予定としては
@@ -339,218 +341,218 @@ class UI(QtGui.QMainWindow):
         self.close()
 
 
-class RelaxationCurveCalculation:
-    """緩和曲線を計算する
-        メソッド
-        make_matrix(): 与えられたパラメータから必要な行列を計算する. 変数を設定したときに実行する.
-        Hamiltonian(): Hamiltonianを計算し, numpyの行列で返す.
-        EnergyLevel(): 核spinのエネルギー固有値self.levelと固有状態self.vを計算する.
-        TransitionProbability(v): 固有状態vに対して遷移確率の行列を計算する.
-        FSP(): 共鳴周波数を計算する. 有意な遷移のみを取り出し, self.fres, self.intensに返す.
-        some_case(): 自動初期条件設定. NQRの場合に対応.
-        RelaxationCurve(): 緩和関数の計算.
-        RelaxationCurveInitial(n0): 初期条件n0を与えた時の緩和関数の計算.
-        formula(fid, n0): fidに緩和関数を書きだす. 初期条件n0を与えることもできる.
-        """
-
-    def __init__(self):
-        """デフォルトの初期条件を与える.
-        実際の使用時にはここで与えた変数を外部から与えて, 次のmake_matrixを行う"""
-        pi = np.pi
-        self.i = 3.5  # 核spin
-        self.gyr = 10.0  # MHz/T
-        self.h0 = 10.0  # T
-        self.k_shift = 0.000  # 単位はunity
-        self.nuq = 1.000  # MHz
-        self.eta = 0.0  #
-        self.theta = 00.0 * pi / 180.0  # 電場勾配の最大主軸をz方向，
-        self.phi = 00.0 * pi / 180.0  # 磁場方向を極座標(theta,phi)で表す．単位はrad.
-        self.intens_lim = 1.0e-5  # NMR中心線の信号強度のintens_lim倍未満の線は無視
-        self.eps = 2e-16
-        self.eps_c = 1e-6  # 指数関数の係数がこの値以上であれば表示する
-        self.make_matrix()
-
-    def make_matrix(self):
-        """与えられたパラメータから行列及び次元を決定する.
-        パラメータを与えたら実行せよ."""
-        self.dim = int(2 * self.i + 1)
-        self.ii = self.i * (self.i + 1)
-        m_spin = np.arange(self.i, -self.i - 1.0, -1.0)
-
-        self.ip = np.diag(np.sqrt(self.ii - (m_spin[0:-1]) * (m_spin[0:-1] - 1.0)), 1)
-        self.im = np.conj(self.ip.T)
-        self.ix = +0.5 * (self.ip + self.im)
-        self.iy = -0.5j * (self.ip - self.im)
-        self.iz = np.diag(m_spin)
-
-    def Hamiltonian(self):
-        nuq = np.abs(self.nuq)
-        H_Z = -self.gyr * self.h0 * (1 + self.k_shift) * (self.iz * np.cos(self.theta)
-                                                          + (self.ix * np.cos(self.phi) + self.iy * np.sin(
-                    self.phi)) * np.sin(self.theta))
-        H_Q = nuq / 6.0 \
-              * (3 * np.dot(self.iz, self.iz) - self.ii * np.identity(self.dim)
-                 + 0.5 * self.eta * (np.dot(self.ip, self.ip) + np.dot(self.im, self.im)))
-
-        return H_Z + H_Q
-
-    def EnergyLevel(self):
-        h = self.Hamiltonian()
-        self.level, self.v = np.linalg.eigh(h, 'L')
-
-        sort_index = np.argsort(self.level)
-        self.level = self.level[sort_index]
-        self.v = self.v[:, sort_index]
-
-    def TransitionProbability(self, v):
-        wx = np.dot(np.dot(np.conj(v.T), self.ix), v)
-        wy = np.dot(np.dot(np.conj(v.T), self.iy), v)
-        wz = np.dot(np.dot(np.conj(v.T), self.iz), v)
-        w = np.real(wx * np.conj(wx) + wy * np.conj(wy) + wz * np.conj(wz)) - self.ii * np.identity(self.dim)
-        return w
-
-    def FSP(self):
-        self.some_case()
-        fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
-                np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
-        intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
-        # 有意なIntensityかつ正の共鳴周波数の場合にTrue
-        self.resind = (intens >= self.intens_lim) * (fres > 0.0)
-        # 有意な遷移のみ取り出して周波数でソート
-        self.sortind = np.argsort(fres[self.resind])
-        self.fres = fres[self.resind][self.sortind]
-        self.intens = intens[self.resind][self.sortind]
-
-    def some_case(self):
-        # 対角化
-        self.w = self.TransitionProbability(self.v)
-        self.evw, self.a = np.linalg.eigh(self.w)
-
-        self.sortind = np.argsort(self.evw)[-1::-1]  # エネルギー固有値 降順
-        self.evw = self.evw[self.sortind]
-        self.a = self.a[:, self.sortind]
-
-        # 場合分け
-        f_nmr = self.gyr * self.h0 * (1 + self.k_shift)
-        # NQRの場合
-        if np.abs(f_nmr) < self.eps * np.abs(self.nuq) and (self.dim % 2) * np.abs(self.eta) < self.eps:
-            if self.dim % 2 == 1:  # NQR，I: 整数，η=0
-                self.w = np.vstack((np.zeros(self.dim), self.w))
-                self.w = np.hstack((np.zeros((self.dim + 1, 1)), self.w))
-                self.a = np.vstack((2.0 * self.a[0, :], self.a[1::2, :] + self.a[2::2, :]))
-                # 係数の補正項
-                self.c0 = np.vstack(([1 / 6.0], 0.25 * np.ones(((self.dim - 3) // 2, 1))))
-
-            else:  # NQR，I: 半奇数
-                self.a = self.a[0::2, :] + self.a[1::2, :]
-                self.c0 = 0.25
-
-            self.level = self.level[::2]  # 縮退エネルギーをまとめる
-            # 遷移確率の縮退準位に関する和
-            self.w = self.w[::2, ::2] + self.w[::2, 1::2] + self.w[1::2, ::2] + self.w[1::2, 1::2]
-            self.dim_ev = (self.dim + 1) // 2
-        else:  # NMR, または分裂なし
-            self.c0 = 0.5
-            self.dim_ev = self.dim
-
-    def RelaxationCurve(self):
-        # ind_t = [0, ..., 2I+1, ...(2I+1回)..., 0, ..., 2I+1]
-        ind_t = list(range(self.dim_ev)) * self.dim_ev
-        # あらゆる固有ベクトルの差を作る
-        # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
-        self.c = self.a[ind_t, 1:] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), 1:]
-        self.c = self.c[self.resind, :][self.sortind, :]
-        self.c = self.c0 * (self.c * self.c)
-        cind = (np.max(self.c, axis=0) > self.eps_c)
-        self.evw = self.evw[1:][cind]
-        self.c = self.c[:, cind]
-
-    def RelaxationCurveInitial(self, n0):
-        """初期値のリスト n0に対して緩和曲線を計算する. """
-        f_nmr = self.gyr * self.h0 * (1 + self.k_shift)
-        if np.abs(f_nmr) < self.eps * np.abs(self.nuq) and (self.dim % 2) * np.abs(self.eta) < self.eps:
-            """ NQRの場合 """
-            return ValueError
-        self.dim_ev = self.dim
-        # 係数行列の計算
-        c1 = np.dot(self.a.T, n0)
-
-        ind_t = list(range(self.dim_ev)) * self.dim_ev
-        c2 = self.a[ind_t, :] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), :]
-        # 有意な遷移のみ残す.
-        c2 = c2[self.resind, :][self.sortind, :]
-
-        # self.c[i,j] = sum_d (C_ni-C_nj)*C_nd*n_d(0)
-        # self.c[nu,n]は遷移nuの緩和の, n番目の固有値の係数. 準位(j,k)間の遷移とは nu = j*2I + k の関係にある.
-        self.c = c2.dot(np.diag(c1))[:, 1:]
-        # self.cの形は[self.w_sort_idx.size, dim_ev]
-
-        cind = (np.max(self.c, axis=0) > self.eps_c)
-        self.evw = self.evw[1:][cind]
-        self.c = self.c[:, cind]
-
-        self.resind = self.c.sum(axis=1) > 0
-        self.fres = self.fres[self.resind]
-        self.intens = self.intens[self.resind]
-        self.c = self.c[self.resind, :]
-        self.sortind = np.argsort(self.fres)
-
-        # 規格化
-        self.c = RelaxationCurveCalculation.row_normalize(self.c)
-
-    @staticmethod
-    def row_normalize(x):
-        """np行列xを受け取り, 行ごとに規格化(sum|・| = 1)して返す."""
-        return np.linalg.inv(np.diag(abs(x).sum(axis=1))).dot(x)
-
-    def formula(self, n0=None):
-        self.EnergyLevel()
-        self.FSP()
-        if n0 is None:
-            self.RelaxationCurve()
-        else:
-            self.RelaxationCurveInitial(n0)
-        return self.formula_write()
-
-    def formula_write(self):
-        fid = []
-
- #       pi = np.pi
- #       fid.append("""# NMR relaxation curve
- #           # I={0:.1f}, gamma={1:.5f} MHz/T, H0={2:.5f} T, K={3:.5f}%
- #           # nuQ={4:.5f} MHz, eta={5:.5f}, theta={6:.5f}deg, phi={7:.5f}deg
- #           """.format(self.i, self.gyr, self.h0, 100.0 * self.k_shift, self.nuq, self.eta,
- #                      self.theta / pi * 180.0, self.phi / pi * 180))
-
-        # formula style
-        fid.append("[f(MHz) intensity]\n")
-        for i in range(self.sortind.size):
-            fid.append("[{0:g} {1:g}] ".format(self.fres[i], self.intens[i]))
-            printed = 0
-            for j in range(self.evw.size):
-                if abs(self.c[i, j]) > self.eps_c:
-                    if printed == 0:
-                        printed = 1
-                    else:
-                        fid.append(" + ")
-
-                    fid.append("{0:g} * exp({1:g} * x/T1)".format(self.c[i, j], self.evw[j] / 1000))
-            fid.append("\n")
-        return ' '.join(fid)
-
-    def list(self, fid):
-        for j in range(self.evw.size):
-            fid.write(" {0:f}".format(self.evw[j]))
-        fid.write("\n")
-
-        for i in range(self.sortind.size):
-            fid.write("[{0:f} {1:f}]".format(self.fres[i], self.intens[i]))
-            for j in range(self.evw.size):
-                fid.write(" {0:f}".format(self.c[i, j]))
-            fid.write("\n")
-
-    def write_initial_simple(self, n0):
-        """初期値を入力して, 緩和関数の文字列を出力する関数を作る."""
+# class RelaxationCurveCalculation:
+#     """緩和曲線を計算する
+#         メソッド
+#         make_matrix(): 与えられたパラメータから必要な行列を計算する. 変数を設定したときに実行する.
+#         Hamiltonian(): Hamiltonianを計算し, numpyの行列で返す.
+#         EnergyLevel(): 核spinのエネルギー固有値self.levelと固有状態self.vを計算する.
+#         TransitionProbability(v): 固有状態vに対して遷移確率の行列を計算する.
+#         FSP(): 共鳴周波数を計算する. 有意な遷移のみを取り出し, self.fres, self.intensに返す.
+#         some_case(): 自動初期条件設定. NQRの場合に対応.
+#         RelaxationCurve(): 緩和関数の計算.
+#         RelaxationCurveInitial(n0): 初期条件n0を与えた時の緩和関数の計算.
+#         formula(fid, n0): fidに緩和関数を書きだす. 初期条件n0を与えることもできる.
+#         """
+#
+#     def __init__(self):
+#         """デフォルトの初期条件を与える.
+#         実際の使用時にはここで与えた変数を外部から与えて, 次のmake_matrixを行う"""
+#         pi = np.pi
+#         self.i = 3.5  # 核spin
+#         self.gyr = 10.0  # MHz/T
+#         self.h0 = 10.0  # T
+#         self.k_shift = 0.000  # 単位はunity
+#         self.nuq = 1.000  # MHz
+#         self.eta = 0.0  #
+#         self.theta = 00.0 * pi / 180.0  # 電場勾配の最大主軸をz方向，
+#         self.phi = 00.0 * pi / 180.0  # 磁場方向を極座標(theta,phi)で表す．単位はrad.
+#         self.intens_lim = 1.0e-5  # NMR中心線の信号強度のintens_lim倍未満の線は無視
+#         self.eps = 2e-16
+#         self.eps_c = 1e-6  # 指数関数の係数がこの値以上であれば表示する
+#         self.make_matrix()
+#
+#     def make_matrix(self):
+#         """与えられたパラメータから行列及び次元を決定する.
+#         パラメータを与えたら実行せよ."""
+#         self.dim = int(2 * self.i + 1)
+#         self.ii = self.i * (self.i + 1)
+#         m_spin = np.arange(self.i, -self.i - 1.0, -1.0)
+#
+#         self.ip = np.diag(np.sqrt(self.ii - (m_spin[0:-1]) * (m_spin[0:-1] - 1.0)), 1)
+#         self.im = np.conj(self.ip.T)
+#         self.ix = +0.5 * (self.ip + self.im)
+#         self.iy = -0.5j * (self.ip - self.im)
+#         self.iz = np.diag(m_spin)
+#
+#     def Hamiltonian(self):
+#         nuq = np.abs(self.nuq)
+#         H_Z = -self.gyr * self.h0 * (1 + self.k_shift) * (self.iz * np.cos(self.theta)
+#                                                           + (self.ix * np.cos(self.phi) + self.iy * np.sin(
+#                     self.phi)) * np.sin(self.theta))
+#         H_Q = nuq / 6.0 \
+#               * (3 * np.dot(self.iz, self.iz) - self.ii * np.identity(self.dim)
+#                  + 0.5 * self.eta * (np.dot(self.ip, self.ip) + np.dot(self.im, self.im)))
+#
+#         return H_Z + H_Q
+#
+#     def EnergyLevel(self):
+#         h = self.Hamiltonian()
+#         self.level, self.v = np.linalg.eigh(h, 'L')
+#
+#         sort_index = np.argsort(self.level)
+#         self.level = self.level[sort_index]
+#         self.v = self.v[:, sort_index]
+#
+#     def TransitionProbability(self, v):
+#         wx = np.dot(np.dot(np.conj(v.T), self.ix), v)
+#         wy = np.dot(np.dot(np.conj(v.T), self.iy), v)
+#         wz = np.dot(np.dot(np.conj(v.T), self.iz), v)
+#         w = np.real(wx * np.conj(wx) + wy * np.conj(wy) + wz * np.conj(wz)) - self.ii * np.identity(self.dim)
+#         return w
+#
+#     def FSP(self):
+#         self.some_case()
+#         fres = (np.abs(np.tril(self.level[:, np.newaxis] - self.level, -1)) -
+#                 np.triu(np.ones((self.dim_ev, self.dim_ev)))).flatten()
+#         intens = (np.tril(self.w, -1)).flatten() * 2.0 / np.ceil(self.ii)
+#         # 有意なIntensityかつ正の共鳴周波数の場合にTrue
+#         self.resind = (intens >= self.intens_lim) * (fres > 0.0)
+#         # 有意な遷移のみ取り出して周波数でソート
+#         self.sortind = np.argsort(fres[self.resind])
+#         self.fres = fres[self.resind][self.sortind]
+#         self.intens = intens[self.resind][self.sortind]
+#
+#     def some_case(self):
+#         # 対角化
+#         self.w = self.TransitionProbability(self.v)
+#         self.evw, self.a = np.linalg.eigh(self.w)
+#
+#         self.sortind = np.argsort(self.evw)[-1::-1]  # エネルギー固有値 降順
+#         self.evw = self.evw[self.sortind]
+#         self.a = self.a[:, self.sortind]
+#
+#         # 場合分け
+#         f_nmr = self.gyr * self.h0 * (1 + self.k_shift)
+#         # NQRの場合
+#         if np.abs(f_nmr) < self.eps * np.abs(self.nuq) and (self.dim % 2) * np.abs(self.eta) < self.eps:
+#             if self.dim % 2 == 1:  # NQR，I: 整数，η=0
+#                 self.w = np.vstack((np.zeros(self.dim), self.w))
+#                 self.w = np.hstack((np.zeros((self.dim + 1, 1)), self.w))
+#                 self.a = np.vstack((2.0 * self.a[0, :], self.a[1::2, :] + self.a[2::2, :]))
+#                 # 係数の補正項
+#                 self.c0 = np.vstack(([1 / 6.0], 0.25 * np.ones(((self.dim - 3) // 2, 1))))
+#
+#             else:  # NQR，I: 半奇数
+#                 self.a = self.a[0::2, :] + self.a[1::2, :]
+#                 self.c0 = 0.25
+#
+#             self.level = self.level[::2]  # 縮退エネルギーをまとめる
+#             # 遷移確率の縮退準位に関する和
+#             self.w = self.w[::2, ::2] + self.w[::2, 1::2] + self.w[1::2, ::2] + self.w[1::2, 1::2]
+#             self.dim_ev = (self.dim + 1) // 2
+#         else:  # NMR, または分裂なし
+#             self.c0 = 0.5
+#             self.dim_ev = self.dim
+#
+#     def RelaxationCurve(self):
+#         # ind_t = [0, ..., 2I+1, ...(2I+1回)..., 0, ..., 2I+1]
+#         ind_t = list(range(self.dim_ev)) * self.dim_ev
+#         # あらゆる固有ベクトルの差を作る
+#         # 第二項のindex [0, 0, ,...,0 ,..., 2I+1, ..., 2I+1]
+#         self.c = self.a[ind_t, 1:] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), 1:]
+#         self.c = self.c[self.resind, :][self.sortind, :]
+#         self.c = self.c0 * (self.c * self.c)
+#         cind = (np.max(self.c, axis=0) > self.eps_c)
+#         self.evw = self.evw[1:][cind]
+#         self.c = self.c[:, cind]
+#
+#     def RelaxationCurveInitial(self, n0):
+#         """初期値のリスト n0に対して緩和曲線を計算する. """
+#         f_nmr = self.gyr * self.h0 * (1 + self.k_shift)
+#         if np.abs(f_nmr) < self.eps * np.abs(self.nuq) and (self.dim % 2) * np.abs(self.eta) < self.eps:
+#             """ NQRの場合 """
+#             return ValueError
+#         self.dim_ev = self.dim
+#         # 係数行列の計算
+#         c1 = np.dot(self.a.T, n0)
+#
+#         ind_t = list(range(self.dim_ev)) * self.dim_ev
+#         c2 = self.a[ind_t, :] - self.a[np.reshape(ind_t, (self.dim_ev, -1)).T.flatten(), :]
+#         # 有意な遷移のみ残す.
+#         c2 = c2[self.resind, :][self.sortind, :]
+#
+#         # self.c[i,j] = sum_d (C_ni-C_nj)*C_nd*n_d(0)
+#         # self.c[nu,n]は遷移nuの緩和の, n番目の固有値の係数. 準位(j,k)間の遷移とは nu = j*2I + k の関係にある.
+#         self.c = c2.dot(np.diag(c1))[:, 1:]
+#         # self.cの形は[self.w_sort_idx.size, dim_ev]
+#
+#         cind = (np.max(self.c, axis=0) > self.eps_c)
+#         self.evw = self.evw[1:][cind]
+#         self.c = self.c[:, cind]
+#
+#         self.resind = self.c.sum(axis=1) > 0
+#         self.fres = self.fres[self.resind]
+#         self.intens = self.intens[self.resind]
+#         self.c = self.c[self.resind, :]
+#         self.sortind = np.argsort(self.fres)
+#
+#         # 規格化
+#         self.c = RelaxationCurveCalculation.row_normalize(self.c)
+#
+#     @staticmethod
+#     def row_normalize(x):
+#         """np行列xを受け取り, 行ごとに規格化(sum|・| = 1)して返す."""
+#         return np.linalg.inv(np.diag(abs(x).sum(axis=1))).dot(x)
+#
+#     def formula(self, n0=None):
+#         self.EnergyLevel()
+#         self.FSP()
+#         if n0 is None:
+#             self.RelaxationCurve()
+#         else:
+#             self.RelaxationCurveInitial(n0)
+#         return self.formula_write()
+#
+#     def formula_write(self):
+#         fid = []
+#
+#  #       pi = np.pi
+#  #       fid.append("""# NMR relaxation curve
+#  #           # I={0:.1f}, gamma={1:.5f} MHz/T, H0={2:.5f} T, K={3:.5f}%
+#  #           # nuQ={4:.5f} MHz, eta={5:.5f}, theta={6:.5f}deg, phi={7:.5f}deg
+#  #           """.format(self.i, self.gyr, self.h0, 100.0 * self.k_shift, self.nuq, self.eta,
+#  #                      self.theta / pi * 180.0, self.phi / pi * 180))
+#
+#         # formula style
+#         fid.append("[f(MHz) intensity]\n")
+#         for i in range(self.sortind.size):
+#             fid.append("[{0:g} {1:g}] ".format(self.fres[i], self.intens[i]))
+#             printed = 0
+#             for j in range(self.evw.size):
+#                 if abs(self.c[i, j]) > self.eps_c:
+#                     if printed == 0:
+#                         printed = 1
+#                     else:
+#                         fid.append(" + ")
+#
+#                     fid.append("{0:g} * exp({1:g} * x/T1)".format(self.c[i, j], self.evw[j] / 1000))
+#             fid.append("\n")
+#         return ' '.join(fid)
+#
+#     def list(self, fid):
+#         for j in range(self.evw.size):
+#             fid.write(" {0:f}".format(self.evw[j]))
+#         fid.write("\n")
+#
+#         for i in range(self.sortind.size):
+#             fid.write("[{0:f} {1:f}]".format(self.fres[i], self.intens[i]))
+#             for j in range(self.evw.size):
+#                 fid.write(" {0:f}".format(self.c[i, j]))
+#             fid.write("\n")
+#
+#     def write_initial_simple(self, n0):
+#         """初期値を入力して, 緩和関数の文字列を出力する関数を作る."""
 
 
 def main():
