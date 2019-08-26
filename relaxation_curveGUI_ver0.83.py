@@ -150,6 +150,8 @@ class InitialParameterWidget(QWidget):
             button.clicked.connect(self.ab_button_pushed)
 
         vbox = QVBoxLayout(self)
+        self.auto_initial_check_box = QCheckBox("detect automatically")
+        vbox.addWidget(self.auto_initial_check_box)
         vbox.addLayout(hbox)
         vbox.setAlignment(QtCore.Qt.AlignLeft)
         self.initial_text = []
@@ -218,16 +220,27 @@ class AdvSettings(QWidget):
         vbox.addLayout(box)
         self.int_lim_text.textEdited.connect(self.parameter_set)
 
+        label = QLabel("resolution of f (MHz)")
+        self.freq_lim_text = QLineEdit(self)
+        box = QHBoxLayout()
+        box.addWidget(label)
+        box.addWidget(self.freq_lim_text)
+        vbox.addLayout(box)
+        self.freq_lim_text.textEdited.connect(self.parameter_set)
+
         self.setLayout(vbox)
         self.eps_c_text.setText("1e-2")
         self.int_lim_text.setText("1e-2")
-        self.eps_c = 1e-6
-        self.int_lim = 1e-5
+        self.freq_lim_text.setText("1e-2")
+        self.eps_c = 1e-2
+        self.int_lim = 1e-2
+        self.freq_lim = 1e-2
 
     def parameter_set(self):
         try:
             self.eps_c = float(self.eps_c_text.text())
             self.int_lim = float(self.int_lim_text.text())
+            self.freq_lim = float(self.freq_lim_text.text())
         except ValueError:
             pass
 
@@ -303,17 +316,21 @@ class UI(QMainWindow):
 
         r.eps_c = self.advset_widget.eps_c
         r.intens_lim = self.advset_widget.int_lim
+        r.f_resolution = self.advset_widget.freq_lim
 
         r.make_matrix()
         try:
             if self.parameter_dock.set_initial_check.checkState():
-                N = self.parameter_dock.i_combo.currentIndex() * 2 + 2  # 2I+1
-                self.n0 = self.initial_parameter.get_parameter(N)
-                if not self.n0:
-                    return
-                a = r.formula(self.n0)
+                if self.initial_parameter.auto_initial_check_box.isChecked():
+                    a = r.formula(auto_initial=True)
+                else:
+                    N = self.parameter_dock.i_combo.currentIndex() * 2 + 2  # 2I+1
+                    self.n0 = self.initial_parameter.get_parameter(N)
+                    if not self.n0:
+                        return
+                    a = r.formula(self.n0)
             else:
-                a = r.formula()
+                a = r.formula(auto_initial=False)
         except ValueError as e:
             print(e)
             QMessageBox.warning(self, "Message", u"Sorry but initial parameters are not available in NQR case")

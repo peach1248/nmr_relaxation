@@ -27,6 +27,7 @@ class RelaxationCurveCalculation:
                  eta=0,
                  theta=0,
                  phi=0,
+                 f_resolution=1e-2,
                  intens_lim=1e-5,
                  eps=2e-16,
                  eps_c=1e-6):
@@ -43,7 +44,7 @@ class RelaxationCurveCalculation:
         self.phi = phi * pi / 180.0  # 磁場方向を極座標(theta,phi)で表す．単位はrad.
         self.intens_lim = intens_lim  # NMR中心線の信号強度のintens_lim倍未満の線は無視
         self.eps = eps
-        self.f_resolution = 1e-3
+        self.f_resolution = f_resolution
         self.eps_c = eps_c  # 指数関数の係数がこの値以上であれば表示する
         self.make_matrix()
 
@@ -189,8 +190,8 @@ class RelaxationCurveCalculation:
             n0s = np.zeros((fres.size, self.dim))
             for f_i, f in enumerate(fres):
                 idx = np.where(self.fres == f)
-                n0s[f_i][idx[0]] += 1
-                n0s[f_i][idx[1]] -= 1
+                n0s[f_i][idx[0]] += self.intens[idx]
+                n0s[f_i][idx[1]] -= self.intens[idx]
                 intens[f_i] += self.intens[idx].sum()
                 self.intens[idx] = 0
 

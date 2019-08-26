@@ -38,6 +38,20 @@ class TestEnergyLevelRelaxation:
         r = RelaxationCurveCalculation(i=0.5, h0=0, nuq=0)
         r.formula(auto_initial=auto)
 
+    @pytest.mark.parametrize("i", [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+    def test_energy_level_i_one_half(self, i):
+        r = RelaxationCurveCalculation(i=i, h0=1, gyr=1, nuq=0)
+        r.EnergyLevel()
+        r.get_resonance_and_relaxation(get_initial_value=True)
+        assert (np.abs(
+            r.c
+            - np.array([[1]])) < 1e-6
+        ).all()
+        assert (np.abs(
+            r.evw
+            - np.array([[-1]])) < 1e-6
+        ).all()
+
     @pytest.mark.parametrize("auto", [True, False])
     def test_energy_level_i_one_half(self, auto):
         r = RelaxationCurveCalculation(i=0.5, h0=1, gyr=1, nuq=0)
